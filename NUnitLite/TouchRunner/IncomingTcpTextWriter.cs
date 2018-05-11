@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 #if XAMCORE_2_0
 using UIKit;
@@ -20,6 +21,13 @@ namespace MonoTouch.NUnit {
 		StreamWriter writer;
 		BlockingCollection<Tuple<SendType, object>> queue = new BlockingCollection<Tuple<SendType, object>> ();
 		ManualResetEvent connected = new ManualResetEvent (false);
+		TaskCompletionSource<bool> closed = new TaskCompletionSource<bool> ();
+
+		public Task ClosedTask {
+			get {
+				return closed.Task;
+			}
+		}
 
 		public IncomingTcpTextWriter (int port)
 		{
@@ -55,14 +63,6 @@ namespace MonoTouch.NUnit {
 			Console.WriteLine ("[{0}] Successful connection from {1}", DateTime.Now, client.Client.RemoteEndPoint);
 		}
 
-		bool WaitForConnection (TimeSpan? timeout = null)
-		{
-			if (timeout.HasValue)
-				return connected.WaitOne (timeout.Value);
-
-			return connected.WaitOne ();
-		}
-
 		public int Port { get; private set; }
 
 		// we override everything that StreamWriter overrides from TextWriter
@@ -77,8 +77,6 @@ namespace MonoTouch.NUnit {
 #if __IOS__
 			UIApplication.SharedApplication.NetworkActivityIndicatorVisible = false;
 #endif
-			if (!WaitForConnection (TimeSpan.FromSeconds (30)))
-				Console.WriteLine ("[{0}] Waited 30 seconds for an incoming connection, but nobody called. The test run will now exit.", DateTime.Now);
 			Enqueue (SendType.Close);
 		}
 
@@ -96,7 +94,7 @@ namespace MonoTouch.NUnit {
 		void ProcessThread ()
 		{
 			try {
-				WaitForConnection ();
+				connected.WaitOne ();
 				while (queue.TryTake (out var data, TimeSpan.FromDays (1))) {
 					var type = data.Item1;
 					var obj = data.Item2;
@@ -131,6 +129,7 @@ namespace MonoTouch.NUnit {
 					case SendType.Close:
 						writer.Close ();
 						client.Close ();
+						closed.TrySetResult (true);
 						break;
 					default:
 						throw new NotImplementedException ();

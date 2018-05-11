@@ -143,7 +143,7 @@ namespace MonoTouch.NUnit.UI {
 				if (TerminateAfterExecution) {
 					if (WriterFinishedTask != null) {
 						Task.Run (async () => {
-							await WriterFinishedTask;
+							await Task.WhenAny (WriterFinishedTask, Task.Delay (TimeSpan.FromSeconds (30)));
 							TerminateWithSuccess ();
 						});
 					} else {
@@ -273,7 +273,9 @@ namespace MonoTouch.NUnit.UI {
 							break;
 						case "INCOMING-TCP":
 							Console.WriteLine ("[{0}] Waiting for connection on port {1} to transmit results", now, options.HostPort);
-							defaultWriter = new IncomingTcpTextWriter (options.HostPort);
+							var wr = new IncomingTcpTextWriter (options.HostPort);
+							defaultWriter = wr;
+							WriterFinishedTask = wr.ClosedTask;
 							break;
 						}
 						if (options.EnableXml) {
