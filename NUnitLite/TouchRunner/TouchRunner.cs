@@ -143,7 +143,9 @@ namespace MonoTouch.NUnit.UI {
 				if (TerminateAfterExecution) {
 					if (WriterFinishedTask != null) {
 						Task.Run (async () => {
+							Console.WriteLine ("Waiting for writer finished task.");
 							await Task.WhenAny (WriterFinishedTask, Task.Delay (TimeSpan.FromSeconds (30)));
+							Console.WriteLine ("Completed waiting for writer finished task.");
 							TerminateWithSuccess ();
 						});
 					} else {

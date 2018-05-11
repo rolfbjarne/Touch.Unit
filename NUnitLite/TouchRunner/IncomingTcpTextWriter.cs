@@ -58,6 +58,7 @@ namespace MonoTouch.NUnit {
 		void ConnectionAccepted (IAsyncResult ar)
 		{
 			client = listener.EndAcceptTcpClient (ar);
+			Console.WriteLine ("[{0}] Connection attempt from {1}", DateTime.Now, client.Client.RemoteEndPoint);
 			writer = new StreamWriter (client.GetStream ());
 			connected.Set ();
 			Console.WriteLine ("[{0}] Successful connection from {1}", DateTime.Now, client.Client.RemoteEndPoint);
@@ -95,6 +96,7 @@ namespace MonoTouch.NUnit {
 		{
 			try {
 				connected.WaitOne ();
+				Console.WriteLine ("ITTP: Starting");
 				while (queue.TryTake (out var data, TimeSpan.FromDays (1))) {
 					var type = data.Item1;
 					var obj = data.Item2;
@@ -118,15 +120,18 @@ namespace MonoTouch.NUnit {
 						writer.Flush ();
 						break;
 					case SendType.Flush:
+						Console.WriteLine ("ITTP: Flush");
 						if (obj != null)
 							throw new NotImplementedException ();
 						writer.Flush ();
 						break;
 					case SendType.Dispose:
+						Console.WriteLine ("ITTP: Dispose");
 						writer.Dispose ();
 						client.Dispose ();
 						break;
 					case SendType.Close:
+						Console.WriteLine ("ITTP: Close");
 						writer.Close ();
 						client.Close ();
 						closed.TrySetResult (true);
@@ -137,6 +142,8 @@ namespace MonoTouch.NUnit {
 				}
 			} catch (Exception e) {
 				Console.WriteLine ("Exception in IncomingTcpTextWriter:ProcessThread: {0}", e);
+			} finally {
+				Console.WriteLine ("ITTP: Done");
 			}
 		}
 
