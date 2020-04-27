@@ -47,11 +47,17 @@ using MonoTouch.Dialog;
 using NUnit.Framework.Api;
 using NUnit.Framework.Internal;
 using NUnit.Framework.Internal.Commands;
+#if NUNITLITE_NUGET
+using NUnitLite;
+using NUnit.Framework.Interfaces;
+#else
+using NUnitLite.Runner;
 using NUnit.Framework.Internal.WorkItems;
+#endif
 
 namespace MonoTouch.NUnit.UI {
 	public abstract class BaseTouchRunner : ITestListener {
-		TestSuite suite = new TestSuite (String.Empty);
+		TestSuite suite = new TestSuite ("TestSuite");
 		ITestFilter filter = TestFilter.Empty;
 		bool connection_failure;
 
@@ -126,7 +132,7 @@ namespace MonoTouch.NUnit.UI {
 		public void LoadSync ()
 		{
 			foreach (Assembly assembly in assemblies)
-				Load (assembly, fixtures == null ? null : new Dictionary<string, IList<string>> () { { "LOAD", fixtures } });
+				Load (assembly, fixtures == null ? null : new Dictionary<string, object> () { { "LOAD", fixtures } });
 			assemblies.Clear ();
 		}
 
@@ -282,13 +288,21 @@ namespace MonoTouch.NUnit.UI {
 							break;
 						}
 						if (options.EnableXml) {
-							NUnitLite.Runner.OutputWriter formatter;
+							OutputWriter formatter;
 							switch (options.XmlVersion) {
 							case XmlVersion.NUnitV3:
-								formatter = new NUnitLite.Runner.NUnit3XmlOutputWriter (DateTime.UtcNow);
+#if NUNITLITE_NUGET
+								formatter = new NUnit3XmlOutputWriter ();
+#else
+								formatter = new NUnit3XmlOutputWriter (DateTime.UtcNow);
+#endif
 								break;
 							default:
-								formatter = new NUnitLite.Runner.NUnit2XmlOutputWriter (DateTime.UtcNow);
+#if NUNITLITE_NUGET
+								formatter = new NUnit2XmlOutputWriter ();
+#else
+								formatter = new NUnit2XmlOutputWriter (DateTime.UtcNow);
+#endif
 								break;
 							}
 							Writer = new NUnitOutputTextWriter (
@@ -394,8 +408,13 @@ namespace MonoTouch.NUnit.UI {
 					Writer.WriteLine ("\t[INFO] {0}", result.Message);
 
 				string name = result.Test.Name;
+#if NUNITLITE_NUGET
+				if (!String.IsNullOrEmpty (name))
+					Writer.WriteLine ("{0} : {1} ms", name, result.Duration * 1000);
+#else
 				if (!String.IsNullOrEmpty (name))
 					Writer.WriteLine ("{0} : {1} ms", name, result.Duration.TotalMilliseconds);
+#endif
 			} else {
 				if (result.IsSuccess ()) {
 					Writer.Write ("\t[PASS] ");
@@ -412,7 +431,11 @@ namespace MonoTouch.NUnit.UI {
 				} else {
 					Writer.Write ("\t[INFO] ");
 				}
+#if NUNITLITE_NUGET
+				Writer.Write (result.Test.FullName);
+#else
 				Writer.Write (result.Test.FixtureType.Name);
+#endif
 				Writer.Write (".");
 				Writer.Write (result.Test.Name);
 
@@ -431,17 +454,34 @@ namespace MonoTouch.NUnit.UI {
 			}
 		}
 
+#if NUNITLITE_NUGET
+		DefaultTestAssemblyBuilder builder = new DefaultTestAssemblyBuilder ();
+#else
 		NUnitLiteTestAssemblyBuilder builder = new NUnitLiteTestAssemblyBuilder ();
+#endif
 		Dictionary<string, object> empty = new Dictionary<string, object> ();
 
+#if NUNITLITE_NUGET
+		public bool Load (string assemblyName, IDictionary<string, object> settings)
+#else
 		public bool Load (string assemblyName, IDictionary settings)
+#endif
 		{
 			return AddSuite (builder.Build (assemblyName, settings ?? empty));
 		}
 
+#if NUNITLITE_NUGET
+		public bool Load (Assembly assembly, IDictionary<string, object> settings)
+#else
 		public bool Load (Assembly assembly, IDictionary settings)
+#endif
 		{
 			return AddSuite (builder.Build (assembly, settings ?? empty));
+		}
+
+		bool AddSuite (ITest ts)
+		{
+			return AddSuite ((TestSuite) ts);
 		}
 
 		bool AddSuite (TestSuite ts)
@@ -460,12 +500,18 @@ namespace MonoTouch.NUnit.UI {
 			InconclusiveCount = 0;
 
 			Result = null;
+#if NUNITLITE_NUGET
+			var runner = new NUnitTestAssemblyRunner (builder);
+			runner.Run (this, filter);
+			Result = (TestResult) runner.Result;
+#else
 			TestExecutionContext current = TestExecutionContext.CurrentContext;
 			current.WorkDirectory = Environment.CurrentDirectory;
 			current.Listener = this;
 			WorkItem wi = test.CreateWorkItem (filter, new FinallyDelegate ());
 			wi.Execute (current);
 			Result = wi.Result;
+#endif
 			return Result;
 		}
 
@@ -478,6 +524,13 @@ namespace MonoTouch.NUnit.UI {
 		public void TestOutput (TestOutput testOutput)
 		{
 		}
+
+#if NUNITLITE_NUGET
+		public void SendMessage (TestMessage message)
+		{
+			throw new NotImplementedException ();
+		}
+#endif
 	}
 
 #if __WATCHOS__

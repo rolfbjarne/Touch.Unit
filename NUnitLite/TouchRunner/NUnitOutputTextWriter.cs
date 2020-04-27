@@ -22,7 +22,12 @@ using System;
 using System.IO;
 using System.Text;
 
+#if NUNITLITE_NUGET
+using NUnit.Framework.Internal;
+using NUnitLite;
+#else
 using NUnitLite.Runner;
+#endif
 using MonoTouch.NUnit.UI;
 
 namespace MonoTouch.NUnit {
@@ -84,7 +89,11 @@ namespace MonoTouch.NUnit {
 				var wrapped = mode == XmlMode.Wrapped;
 
 				if (!wrapped) {
+#if NUNITLITE_NUGET
+					XmlOutputWriter.WriteResultFile (Runner.Result, BaseWriter, null, null);
+#else
 					XmlOutputWriter.WriteResultFile (Runner.Result, BaseWriter);
+#endif
 					if (extra_data.Length > 0) {
 						BaseWriter.Write ("<!--");
 						extra_data.Replace ("--", "- - ");
@@ -96,7 +105,11 @@ namespace MonoTouch.NUnit {
 					BaseWriter.WriteLine ("<NUnitOutput>");
 
 					using (var textWriter = new StringWriter ()) {
+#if NUNITLITE_NUGET
+						XmlOutputWriter.WriteResultFile (Runner.Result, textWriter, null, null);
+#else
 						XmlOutputWriter.WriteResultFile (Runner.Result, textWriter);
+#endif
 						var str = textWriter.ToString ();
 						// Remove any xml declarations, since we're embedding this inside a different xml document.
 						if (str.StartsWith ("<?xml", StringComparison.Ordinal)) {

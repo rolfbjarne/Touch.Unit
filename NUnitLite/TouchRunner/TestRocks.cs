@@ -21,6 +21,9 @@
 using NUnit.Framework;
 using NUnit.Framework.Internal;
 using NUnit.Framework.Api;
+#if NUNITLITE_NUGET
+using NUnit.Framework.Interfaces;
+#endif
 
 namespace MonoTouch.NUnit {
 	
