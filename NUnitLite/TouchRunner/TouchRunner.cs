@@ -136,10 +136,55 @@ namespace MonoTouch.NUnit.UI {
 			assemblies.Clear ();
 		}
 
+		public void SelectLastTestSuite ()
+		{
+			var lastSuite = NSUserDefaults.StandardUserDefaults.StringForKey ("CurrentTest");
+			Console.WriteLine ("lastSuite: {0}", lastSuite);
+
+			if (string.IsNullOrEmpty (lastSuite))
+				return;
+
+			var hierarchy = new List<ITest> ();
+			var test = Find (suite, lastSuite, hierarchy);
+			if (hierarchy.Count < 2)
+				return;
+			// Remove the last one, that's the main test suite
+			hierarchy.RemoveAt (hierarchy.Count - 1);
+			for (var i = hierarchy.Count - 1; i >= 0; i--) {
+				if (hierarchy [i] is TestSuite ts) {
+					Console.WriteLine ($"Showing {ts.FullName}");
+					Show (ts);
+				} else {
+					break;
+				}
+			}
+		}
+
+		ITest Find (ITest parent, string fullname, List<ITest> hierarchy)
+		{
+			if (parent.FullName == fullname) {
+				hierarchy.Add (parent);
+				return parent;
+			}
+
+			foreach (var test in parent.Tests) {
+				var rv = Find (test, fullname, hierarchy);
+				if (rv != null) {
+					hierarchy.Add (parent);
+					return test;
+				}
+			}
+
+			return null;
+		}
+		
+
 		public void AutoRun ()
 		{
-			if (!AutoStart)
+			if (!AutoStart) {
+				SelectLastTestSuite ();
 				return;
+			}
 
 			ExecuteOnMainThread (() => {
 				Run ();
@@ -375,6 +420,10 @@ namespace MonoTouch.NUnit.UI {
 
 		protected abstract void WriteDeviceInformation (TextWriter writer);
 
+		public virtual void Show (TestSuite suite)
+		{
+		}
+
 		public void CloseWriter ()
 		{
 			int total = PassedCount + InconclusiveCount + FailedCount; // ignored are *not* run
@@ -439,6 +488,10 @@ namespace MonoTouch.NUnit.UI {
 					Writer.Write (" : {0}", message.Replace ("\r\n", "\\r\\n"));
 				}
 				Writer.WriteLine ();
+#if NUNITLITE_NUGET
+				if (!string.IsNullOrEmpty (result.Output))
+					Writer.WriteLine (result.Output);
+#endif
 
 				string stacktrace = result.StackTrace;
 				if (!String.IsNullOrEmpty (result.StackTrace)) {
@@ -474,15 +527,21 @@ namespace MonoTouch.NUnit.UI {
 		}
 
 #if NUNITLITE_NUGET
-		NUnitTestAssemblyRunner runner = new NUnitTestAssemblyRunner (new DefaultTestAssemblyBuilder ());
+		// we need one runner per test assembly
+		DefaultTestAssemblyBuilder builder = new DefaultTestAssemblyBuilder ();
+		List<NUnitTestAssemblyRunner> runners = new List<NUnitTestAssemblyRunner> ();
 
 		public bool Load (string assemblyName, IDictionary<string, object> settings = null)
 		{
+			var runner = new NUnitTestAssemblyRunner (builder);
+			runners.Add (runner);
 			return AddSuite ((TestSuite) runner.Load (assemblyName, CreateSettings (settings)));
 		}
 
 		public bool Load (Assembly assembly, IDictionary<string, object> settings = null)
 		{
+			var runner = new NUnitTestAssemblyRunner (builder);
+			runners.Add (runner);
 			return AddSuite ((TestSuite) runner.Load (assembly, CreateSettings (settings)));
 		}
 #else
@@ -507,7 +566,7 @@ namespace MonoTouch.NUnit.UI {
 			return true;
 		}
 
-		public TestResult Run (Test test)
+		public void Run (Test test)
 		{
 			PassedCount = 0;
 			IgnoredCount = 0;
@@ -517,7 +576,9 @@ namespace MonoTouch.NUnit.UI {
 			Result = null;
 
 #if NUNITLITE_NUGET
-			runner.Run (this, new MatchTestFilter { MatchTest = test });
+			var filter = new MatchTestFilter { MatchTest = test };
+			foreach (var runner in runners)
+				runner.Run (this, filter);
 
 			// The TestResult we get back from the runner is for the top-most test suite,
 			// which isn't necessarily the test that we ran. So look for the TestResult
@@ -534,7 +595,13 @@ namespace MonoTouch.NUnit.UI {
 				return null;
 			}
 
-			Result = (TestResult) (find_result (runner.Result) ?? runner.Result);
+			var tsr = new TestSuiteResult (suite);
+			foreach (var runner in runners) {
+				var rv = (TestResult) (find_result (runner.Result) ?? runner.Result);
+				if (rv != null)
+					tsr.AddResult (rv);
+			}
+			Result = tsr;
 #else
 			TestExecutionContext current = TestExecutionContext.CurrentContext;
 			current.WorkDirectory = Environment.CurrentDirectory;
@@ -543,13 +610,17 @@ namespace MonoTouch.NUnit.UI {
 			wi.Execute (current);
 			Result = wi.Result;
 #endif
-			return Result;
 		}
 
 		public ITest LoadedTest {
 			get {
 				return suite;
 			}
+		}
+
+		public void NotifySelectedTest (ITest test)
+		{
+			NSUserDefaults.StandardUserDefaults.SetString (test.FullName, "CurrentTest");
 		}
 
 		public void TestOutput (TestOutput testOutput)
@@ -687,7 +758,7 @@ namespace MonoTouch.NUnit.UI {
 		Dictionary<TestSuite, TestSuiteElement> suite_elements = new Dictionary<TestSuite, TestSuiteElement> ();
 		Dictionary<TestMethod, TestCaseElement> case_elements = new Dictionary<TestMethod, TestCaseElement> ();
 		
-		public void Show (TestSuite suite)
+		public override void Show (TestSuite suite)
 		{
 			NavigationController.PushViewController (suites_dvc [suite], true);
 		}
@@ -716,23 +787,26 @@ namespace MonoTouch.NUnit.UI {
 		
 			root.Add (section);
 			
-			if (section.Count > 1) {
-				Section options = new Section () {
-					new StringElement ("Run all", delegate () {
-						if (OpenWriter (suite.Name)) {
-							Run (suite);
-							CloseWriter ();
-							suites_dvc [suite].Filter ();
-						}
-					})
-				};
-				root.Add (options);
-			}
+			Section options = new Section () {
+				new StringElement ("Run all", delegate () {
+					if (OpenWriter (suite.Name)) {
+						Run (suite);
+						CloseWriter ();
+						suites_dvc [suite].Filter ();
+					}
+				})
+			};
+			root.Add (options);
 
-			suites_dvc.Add (suite, new TouchViewController (root));
+			var tvc = new TouchViewController (root);
+			tvc.ViewAppearing += (object sender, EventArgs ea) => {
+				NotifySelectedTest (suite);
+			};
+			suites_dvc.Add (suite, tvc);
 			return tse;
 		}
-		
+
+
 		TestCaseElement Setup (TestMethod test)
 		{
 			TestCaseElement tce = new TestCaseElement (test, this);
@@ -750,11 +824,11 @@ namespace MonoTouch.NUnit.UI {
 				if (ts != null) {
 					TestSuiteElement tse;
 					if (suite_elements.TryGetValue (ts, out tse))
-						tse.Update (result);
+						tse.TestFinished (result);
 				} else {
 					TestMethod tc = result.Test as TestMethod;
 					if (tc != null)
-						case_elements [tc].Update (result);
+						case_elements [tc].TestFinished (result);
 				}
 			});
 		}

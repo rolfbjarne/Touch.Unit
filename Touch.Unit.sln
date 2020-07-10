@@ -8,9 +8,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "monotouch.tests", "monotouc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Touch.Server", "Touch.Server\Touch.Server.csproj", "{A1303AE1-2693-4DF7-A17B-20C2ABA1E2ED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Touch.Client-tvOS", "Touch.Client\Touch.Client-tvOS.csproj", "{A571BB52-F57E-4ED0-ADC0-95656E866C18}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Touch.Client-tvOS", "Touch.Client\tvOS\Touch.Client-tvOS.csproj", "{A571BB52-F57E-4ED0-ADC0-95656E866C18}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Touch.Client-iOS", "Touch.Client\Touch.Client-iOS.csproj", "{F611ED96-54B5-4975-99BB-12F50AF95936}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Touch.Client-iOS", "Touch.Client\iOS\Touch.Client-iOS.csproj", "{F611ED96-54B5-4975-99BB-12F50AF95936}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

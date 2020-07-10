@@ -36,7 +36,8 @@ using NUnit.Framework.Api;
 namespace MonoTouch.NUnit.UI {
 	
 	class TestCaseElement : TestElement {
-		
+		bool tapped;
+
 		public TestCaseElement (TestMethod testCase, TouchRunner runner)
 			: base (testCase, runner)
 		{
@@ -46,10 +47,10 @@ namespace MonoTouch.NUnit.UI {
 				if (!Runner.OpenWriter (Test.FullName))
 					return;
 
-				var suite = (testCase.Parent as TestSuite);
 #if NUNITLITE_NUGET
 				Run ();
 #else
+				var suite = (testCase.Parent as TestSuite);
 				var context = TestExecutionContext.CurrentContext;
 				context.TestObject = Reflect.Construct (testCase.Method.ReflectedType, null);
 
@@ -59,34 +60,20 @@ namespace MonoTouch.NUnit.UI {
 #endif
 
 				Runner.CloseWriter ();
-				// display more details on (any) failure (but not when ignored)
-				if ((TestCase.RunState == RunState.Runnable) && !Result.IsSuccess ()) {
-					var root = new RootElement ("Results") {
-						new Section () {
-							new TestResultElement (Result)
-						}
-					};
-					var dvc = new DialogViewController (root, true) { Autorotate = true };
-					runner.NavigationController.PushViewController (dvc, true);
-				}
-				// we still need to update our current element
-				if (GetContainerTableView () != null) {
-					var root = GetImmediateRootElement ();
-					root.Reload (this, UITableViewRowAnimation.Fade);
-				}
+				tapped = true;
 			};
 		}
-		
+
 		public TestMethod TestCase {
 			get { return Test as TestMethod; }
 		}
-		
+
 		public void Run ()
 		{
-			Update (Runner.Run (TestCase));
+			Runner.Run (TestCase);
 		}
-		
-		public override void Update ()
+				
+		public override void TestFinished ()
 		{
 			if (Result.IsIgnored ()) {
 				Value = Result.GetMessage ();
@@ -104,6 +91,25 @@ namespace MonoTouch.NUnit.UI {
 			} else {
 				// Assert.Ignore falls into this
 				Value = Result.GetMessage ();
+			}
+
+			if (tapped) {
+				// display more details on (any) failure (but not when ignored)
+				if ((TestCase.RunState == RunState.Runnable) && !Result.IsSuccess ()) {
+					var root = new RootElement ("Results") {
+						new Section () {
+							new TestResultElement (Result)
+						}
+					};
+					var dvc = new DialogViewController (root, true) { Autorotate = true };
+					Runner.NavigationController.PushViewController (dvc, true);
+				}
+				// we still need to update our current element
+				if (GetContainerTableView () != null) {
+					var root = GetImmediateRootElement ();
+					root.Reload (this, UITableViewRowAnimation.Fade);
+				}
+				tapped = false;
 			}
 		}
 	}
