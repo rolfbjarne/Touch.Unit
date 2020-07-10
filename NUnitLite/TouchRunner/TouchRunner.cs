@@ -430,9 +430,9 @@ namespace MonoTouch.NUnit.UI {
 				Writer.Write (result.Test.FullName);
 #else
 				Writer.Write (result.Test.FixtureType.Name);
-#endif
 				Writer.Write (".");
 				Writer.Write (result.Test.Name);
+#endif
 
 				string message = result.Message;
 				if (!String.IsNullOrEmpty (message)) {
