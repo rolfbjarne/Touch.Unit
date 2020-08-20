@@ -95,6 +95,12 @@ namespace MonoTouch.NUnit.UI {
 		List<Assembly> assemblies = new List<Assembly> ();
 		List<string> fixtures;
 
+		public void Add (IEnumerable<Assembly> assemblies)
+		{
+			foreach (var asm in assemblies)
+				Add (asm);
+		}
+
 		public void Add (Assembly assembly)
 		{
 			if (assembly == null)
